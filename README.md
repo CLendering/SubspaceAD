@@ -190,5 +190,13 @@ python main.py \
 If you find this repository useful, please consider citing:
 
 ```bibtex
-TODO
+@misc{lendering2026subspaceadtrainingfreefewshotanomaly,
+      title={SubspaceAD: Training-Free Few-Shot Anomaly Detection via Subspace Modeling}, 
+      author={Camile Lendering and Erkut Akdag and Egor Bondarev},
+      year={2026},
+      eprint={2602.23013},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2602.23013}, 
+}
 ```

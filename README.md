@@ -105,7 +105,7 @@ pca-dino/
 │   ├── benchmark_full_shot.sh
 │   └── ...
 ├── src/
-│   └── pcadino/
+│   └── subspacead/
 │       ├── core/               # PCA + feature extraction code
 │       ├── data/               # Dataset loaders & transforms
 │       ├── post_process/       # Scoring, pixel maps, filters

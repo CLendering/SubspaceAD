@@ -82,7 +82,7 @@ datasets/mvtec-ad/
 
 ```bash
 # 1. Download and extract
-mkdir datasets/VisA_20220922
+mkdir -p datasets/VisA_20220922
 wget https://amazon-visual-anomaly.s3.us-west-2.amazonaws.com/VisA_20220922.tar
 tar -xvf VisA_20220922.tar -C datasets/VisA_20220922
 

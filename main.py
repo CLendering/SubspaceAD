@@ -223,6 +223,8 @@ def main():
     run_name += (
         f"pca_ev{args.pca_ev}" if args.pca_ev is not None else f"_pca_dim{args.pca_dim}"
     )
+    if not args.use_kernel_pca and args.pca_algorithm == "single_pass":
+        run_name += "_single-pass"
     run_name += f"_i-score{args.img_score_agg}"
 
     # Add k-shot and augmentation info to run name
@@ -584,7 +586,12 @@ def main():
             )
             pca_params = pca_model.fit(all_train_tokens)
         else:
-            pca_model = PCAModel(k=args.pca_dim, ev=args.pca_ev, whiten=args.whiten)
+            pca_model = PCAModel(
+                k=args.pca_dim,
+                ev=args.pca_ev,
+                whiten=args.whiten,
+                algorithm=args.pca_algorithm,
+            )
             pca_params = pca_model.fit(
                 feature_generator,
                 feature_dim,

@@ -49,11 +49,13 @@ logging.info(f"PCAModel will use device: {device}")
 
 class PCAModel:
     """
-    Memory-efficient PCA using a two-pass streaming algorithm on GPU.
+    Memory-efficient PCA using two-pass or single-pass streaming statistics.
     Based on https://github.com/dnhkng/PCAonGPU
     """
 
-    def __init__(self, k=None, ev=None, whiten=False, eps=1e-6):
+    def __init__(self, k=None, ev=None, whiten=False, eps=1e-6, algorithm="two_pass"):
+        if algorithm not in ("two_pass", "single_pass"):
+            raise ValueError("algorithm must be 'two_pass' or 'single_pass'")
         self.k = k
         self.ev_ratio = ev
         self.whiten = whiten
@@ -65,6 +67,7 @@ class PCAModel:
         self.pca_params = {}
         self.device = device
         self.dtype = torch.float64
+        self.algorithm = algorithm
 
     def _compute_mean(self, feature_generator, feature_dim, total_tokens, num_batches):
         """Pass 1: Compute the mean of all features."""
@@ -93,6 +96,60 @@ class PCAModel:
             cov_matrix += torch.matmul(batch_centered.T, batch_centered)
         cov_matrix /= total_tokens - 1
         return cov_matrix
+
+    def _compute_mean_and_covariance(
+        self, feature_generator, feature_dim, total_tokens, num_batches
+    ):
+        """Merge centered batch scatters without replaying the feature stream.
+
+        The between-batch mean correction is the Chan--Golub--LeVeque
+        pairwise update, avoiding cancellation from E[xx.T] - E[x]E[x].T.
+        Count observed tokens: total_tokens can be a pre-mask estimate.
+        """
+        if feature_dim < 1:
+            raise ValueError("feature_dim must be positive")
+        mean = torch.zeros(feature_dim, dtype=self.dtype, device=self.device)
+        scatter = torch.zeros(
+            (feature_dim, feature_dim), dtype=self.dtype, device=self.device
+        )
+        count = 0
+        for batch in tqdm(
+            feature_generator(), total=num_batches, desc="PCA Single Pass"
+        ):
+            if batch.ndim != 2 or batch.shape[1] != feature_dim:
+                raise ValueError("Feature batches must have shape (N, feature_dim)")
+            batch_count = batch.shape[0]
+            if batch_count == 0:
+                continue
+            values = torch.from_numpy(batch).to(self.device, dtype=self.dtype)
+            if not torch.isfinite(values).all():
+                raise ValueError("Feature batches must contain only finite values")
+            batch_mean = values.mean(dim=0)
+            centered = values - batch_mean
+            batch_scatter = centered.T @ centered
+            if count == 0:
+                mean = batch_mean
+                scatter = batch_scatter
+                count = batch_count
+                continue
+            combined_count = count + batch_count
+            delta = batch_mean - mean
+            scatter += batch_scatter
+            scatter += torch.outer(delta, delta) * (
+                count * batch_count / combined_count
+            )
+            mean += delta * (batch_count / combined_count)
+            count = combined_count
+
+        if count < 2:
+            raise ValueError("Single-pass PCA requires at least two observed tokens")
+        self.mu_ = mean
+        logging.info(
+            "Single-pass PCA used %d observed tokens (input estimate: %d).",
+            count,
+            total_tokens,
+        )
+        return scatter / (count - 1)
 
     def _compute_eigendecomposition(self, cov_matrix):
         """Perform eigendecomposition on the covariance matrix."""
@@ -149,15 +206,19 @@ class PCAModel:
         self, feature_generator, feature_dim: int, total_tokens: int, num_batches: int
     ):
         """
-        Orchestrates the two-pass streaming PCA fit.
+        Fit PCA with the selected streaming algorithm (two-pass by default).
         """
         logging.info(f"Starting PCA fit on {self.device}...")
 
-        self._compute_mean(feature_generator, feature_dim, total_tokens, num_batches)
-
-        cov_matrix = self._compute_covariance(
-            feature_generator, feature_dim, total_tokens, num_batches
-        )
+        if self.algorithm == "single_pass":
+            cov_matrix = self._compute_mean_and_covariance(
+                feature_generator, feature_dim, total_tokens, num_batches
+            )
+        else:
+            self._compute_mean(feature_generator, feature_dim, total_tokens, num_batches)
+            cov_matrix = self._compute_covariance(
+                feature_generator, feature_dim, total_tokens, num_batches
+            )
 
         evecs = self._compute_eigendecomposition(cov_matrix)
 

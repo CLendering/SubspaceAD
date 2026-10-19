@@ -144,6 +144,12 @@ def get_args():
         "--whiten", action="store_true", help="Apply whitening in PCA."
     )
     pca_group.add_argument(
+        "--pca_algorithm",
+        choices=["two_pass", "single_pass"],
+        default="two_pass",
+        help="Streaming statistics algorithm for standard PCA (not Kernel PCA).",
+    )
+    pca_group.add_argument(
         "--use_kernel_pca",
         action="store_true",
         help="Use Kernel PCA instead of standard PCA.",

@@ -160,6 +160,33 @@ python main.py \
     --outdir results/debug_run
 ```
 
+### Optional single-pass PCA
+
+Standard PCA uses the existing two-pass statistics by default. Add
+`--pca_algorithm single_pass` to compute the mean and sample covariance in
+one traversal of the feature generator. This avoids a second feature
+extraction pass without retaining the complete training feature bank. It
+uses centered batch-scatter merging in float64 and the existing
+eigendecomposition, component selection, parameter format and scoring code.
+Kernel PCA is unaffected.
+Single-pass runs receive a `_single-pass` suffix so their output directories
+do not overwrite the default two-pass results.
+
+Single-pass fitting normalizes by the number of tokens actually yielded,
+which may be smaller than the input estimate when background masking is
+enabled. For a fixed deterministic token stream with the correct token count,
+the two algorithms agree up to floating-point error; eigenvector signs can
+differ. Random augmentations and subsequent RNG state can differ because the
+generator is invoked once instead of twice, so this option does not promise
+identical end-to-end anomaly metrics.
+
+CPU numerical and argument-parsing tests use generated feature matrices;
+they do not download models or datasets:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Benchmark Results
 
 ### Few-Shot (Image AUROC)

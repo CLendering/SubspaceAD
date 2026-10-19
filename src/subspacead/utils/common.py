@@ -148,6 +148,11 @@ def generate_run_name(args: argparse.Namespace) -> str:
         f"pca_ev{args.pca_ev}" if args.pca_ev is not None else f"_pca_dim{args.pca_dim}"
     )
     run_name += f"_{pca_str}"
+    if (
+        not args.use_kernel_pca
+        and getattr(args, "pca_algorithm", "two_pass") == "single_pass"
+    ):
+        run_name += "_single-pass"
     run_name += f"_i-score{args.img_score_agg}"
 
     # K-shot params
